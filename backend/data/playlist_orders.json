@@ -1,22 +1,6 @@
 {
-    "Fantasy.Acci\u00f3n.Combate": [
-        "Global/music/Acci\u00f3n/Combate/violin-and-piano-harmony-instrumental-music-for-focus-281403.mp3",
-        "Global/music/Acci\u00f3n/Combate/banger-x-dark-x-drop-beat-glassy-look-292125.mp3",
-        "Global/music/Acci\u00f3n/Combate/background-music-mp3-free-download-267823.mp3"
-    ],
-    "Fantasy.Acci\u00f3n.Cl\u00edmax": [
-        "Global/music/Acci\u00f3n/Cl\u00edmax/banger-x-dark-x-drop-beat-glassy-look-292125.mp3",
-        "Global/music/Acci\u00f3n/Cl\u00edmax/background-music-mp3-free-download-267823.mp3",
-        "Global/music/Acci\u00f3n/Cl\u00edmax/violin-and-piano-harmony-instrumental-music-for-focus-281403.mp3"
-    ],
-    "Fantasy.Ambience.List": [
-        "Global/ambience/General/go pro.mp3",
-        "Global/ambience/General/sunset.mp3",
-        "Global/ambience/General/agua.mp3"
-    ],
-    "Futurista.Acci\u00f3n.Combate": [
-        "Futurista/music/Acci\u00f3n/Combate/background-music-mp3-free-download-267823.mp3",
-        "Futurista/music/Acci\u00f3n/Combate/banger-x-dark-x-drop-beat-glassy-look-292125.mp3",
-        "Futurista/music/Acci\u00f3n/Combate/violin-and-piano-harmony-instrumental-music-for-focus-281403.mp3"
-    ]
+    "Fantasy.Acci\u00f3n.Combate": [],
+    "Fantasy.Acci\u00f3n.Cl\u00edmax": [],
+    "Fantasy.Ambience.List": [],
+    "Futurista.Acci\u00f3n.Combate": []
 }

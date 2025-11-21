@@ -1,17 +1,1 @@
-[
-    {
-        "id": "e9718af9-3d52-48a5-b176-8c96c8d72e33",
-        "name": "test",
-        "frame": "Futurista",
-        "tracks": [
-            {
-                "trackId": "Futurista/ambience/General/go_pro.mp3",
-                "volume": 77
-            },
-            {
-                "trackId": "Global/ambience/General/agua.mp3",
-                "volume": 6
-            }
-        ]
-    }
-]
+[]

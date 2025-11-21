@@ -15,6 +15,7 @@ export const AmbienceView = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showLoadMenu, setShowLoadMenu] = useState(false);
     const [contextMenu, setContextMenu] = useState<{x: number, y: number, track: Track} | null>(null);
+    
     const [draggedItem, setDraggedItem] = useState<ActiveAmbience | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -34,20 +35,35 @@ export const AmbienceView = () => {
         setContextMenu({ x: e.clientX, y: e.clientY, track });
     };
 
-    const handleDragStart = (e: React.DragEvent, item: ActiveAmbience) => { setDraggedItem(item); e.dataTransfer.effectAllowed = "move"; };
-    const handleDragOver = (e: React.DragEvent, index: number) => { e.preventDefault(); if (!draggedItem) return; setDragOverIndex(index); };
+    // --- DND Handlers ---
+    const handleDragStart = (e: React.DragEvent, item: ActiveAmbience) => {
+        setDraggedItem(item);
+        e.dataTransfer.effectAllowed = "move";
+        // Opcional: Quitar la imagen fantasma por defecto o personalizarla si se desea
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        if (!draggedItem) return;
+        setDragOverIndex(index);
+    };
+
     const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-        e.preventDefault(); setDragOverIndex(null); if (!draggedItem) return;
+        e.preventDefault();
+        setDragOverIndex(null);
+        if (!draggedItem) return;
+
         const currentIndex = activeAmbience.findIndex(a => a.instanceId === draggedItem.instanceId);
         if (currentIndex === -1) return;
+
         const newOrder = [...activeAmbience];
         const [movedItem] = newOrder.splice(currentIndex, 1);
         newOrder.splice(targetIndex, 0, movedItem);
+
         reorderActiveAmbience(newOrder);
         setDraggedItem(null);
     };
 
-    // Helper para renderizar icono dinámico
     const renderTrackIcon = (iconName?: string, size = 20) => {
         const Icon = (LucideIcons as any)[iconName || 'CloudRain'] || LucideIcons.CloudRain;
         return <Icon size={size} />;
@@ -123,11 +139,27 @@ export const AmbienceView = () => {
             <div className="space-y-3">
                 {activeAmbience.length === 0 ? <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-lg text-slate-600 flex flex-col items-center gap-2"><CloudRain size={32} className="opacity-20" /><p className="text-sm">Sin atmósfera activa.</p></div> : 
                     activeAmbience.map((amb, index) => (
-                        <div key={amb.instanceId} 
-                            draggable onDragStart={(e) => handleDragStart(e, amb)} onDragOver={(e) => handleDragOver(e, index)} onDrop={(e) => handleDrop(e, index)}
-                            className={`bg-slate-950 border border-slate-800 rounded-lg p-3 flex items-center gap-4 shadow-sm group hover:border-slate-700 transition-all ${draggedItem?.instanceId === amb.instanceId ? 'opacity-50' : ''} ${dragOverIndex === index ? 'border-t-2 border-t-amber-500' : ''}`}
+                        <div 
+                            key={amb.instanceId} 
+                            // ELIMINADO draggable del contenedor principal
+                            // onDragStart={(e) => handleDragStart(e, amb)}  <-- SE MUEVE AL GRIP
+                            onDragOver={(e) => handleDragOver(e, index)} 
+                            onDrop={(e) => handleDrop(e, index)}
+                            className={`
+                                bg-slate-950 border border-slate-800 rounded-lg p-3 flex items-center gap-4 shadow-sm group hover:border-slate-700 transition-all
+                                ${draggedItem?.instanceId === amb.instanceId ? 'opacity-50 bg-slate-800' : ''}
+                                ${dragOverIndex === index ? 'border-t-2 border-t-amber-500' : ''}
+                            `}
                         >
-                            <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"><GripVertical size={14} /></div>
+                            {/* HANDLE DE ARRASTRE - Solo aquí se permite el drag */}
+                            <div 
+                                draggable 
+                                onDragStart={(e) => handleDragStart(e, amb)}
+                                className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 p-1 rounded hover:bg-slate-800/50"
+                            >
+                                <GripVertical size={14} />
+                            </div>
+
                             <div className={`w-10 h-10 rounded flex items-center justify-center transition-colors ${amb.isMuted ? 'bg-slate-900 text-slate-700' : 'bg-cyan-900/20 text-cyan-500'}`}>
                                 {renderTrackIcon(amb.track.icon, 20)}
                             </div>

@@ -14,6 +14,15 @@ ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 if not os.path.exists(ASSETS_DIR):
     os.makedirs(ASSETS_DIR)
 
+# --- NUEVO: Endpoint de Mantenimiento ---
+@app.route('/api/system/prune', methods=['POST'])
+def prune_system():
+    try:
+        data_manager.prune_orphaned_data(ASSETS_DIR)
+        return jsonify({"status": "success", "message": "System cleaned"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/health')
 def health():
     return jsonify({"status": "ok", "db": "json-filesystem"})
@@ -21,7 +30,6 @@ def health():
 @app.route('/api/tracks', methods=['GET'])
 def get_tracks():
     tracks = []
-    # Cargar metadatos (iconos)
     metadata = data_manager.get_all_metadata()
     
     for root, dirs, files in os.walk(ASSETS_DIR):
@@ -44,7 +52,6 @@ def get_tracks():
 
                 if t_type not in ['music', 'ambience', 'sfx']: t_type = 'sfx'
 
-                # Recuperar icono guardado o usar default según tipo
                 track_meta = metadata.get(rel_path, {})
                 default_icon = 'CloudRain' if t_type == 'ambience' else 'Music'
                 icon = track_meta.get('icon', default_icon)
@@ -58,7 +65,7 @@ def get_tracks():
                     "frame": frame if frame != "Global" else None,
                     "category": category,
                     "subcategory": subcategory,
-                    "icon": icon # Campo nuevo
+                    "icon": icon
                 })
     return jsonify(tracks)
 
@@ -71,7 +78,6 @@ def upload_track():
 
     custom_name = safe_name(request.form.get('name', 'track'))
     t_type = safe_name(request.form.get('type', 'sfx'))
-    # Nuevo: Recibir icono
     icon = request.form.get('icon', 'CloudRain')
     
     frame = request.form.get('frame', 'Global')
@@ -87,7 +93,6 @@ def upload_track():
     filename = f"{custom_name}{os.path.splitext(file.filename)[1]}"
     file.save(os.path.join(save_path, filename))
     
-    # Guardar Metadata
     rel_path = os.path.relpath(os.path.join(save_path, filename), ASSETS_DIR).replace('\\', '/')
     data_manager.save_track_metadata(rel_path, {'icon': icon})
     
@@ -115,7 +120,6 @@ def move_track():
         os.makedirs(dest_dir, exist_ok=True)
         shutil.move(src_path, dest_path)
         
-        # Actualizar referencia de metadata
         new_rel_path = os.path.relpath(dest_path, ASSETS_DIR).replace('\\', '/')
         data_manager.update_metadata_id(track_id, new_rel_path)
         
@@ -141,8 +145,6 @@ def rename_track():
     
     try:
         os.rename(src_path, dest_path)
-        
-        # Actualizar referencia de metadata
         new_rel_path = os.path.relpath(dest_path, ASSETS_DIR).replace('\\', '/')
         data_manager.update_metadata_id(track_id, new_rel_path)
         
@@ -150,8 +152,6 @@ def rename_track():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- Settings, Presets, Orders, Static ---
-# (Igual que antes)
 @app.route('/api/settings', methods=['GET', 'POST'])
 def handle_settings():
     if request.method == 'POST':
@@ -197,4 +197,9 @@ def serve_asset(path):
     return send_from_directory(ASSETS_DIR, path)
 
 if __name__ == '__main__':
+    # --- LIMPIEZA AUTOMÁTICA AL INICIO ---
+    print("Iniciando mantenimiento del sistema...")
+    data_manager.prune_orphaned_data(ASSETS_DIR)
+    print("Sistema listo.")
+    
     app.run(debug=True, port=5000)
