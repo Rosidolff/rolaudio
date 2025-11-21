@@ -3,26 +3,24 @@ import { Volume2, VolumeX, Trash2, Plus, CloudRain, Save, FolderOpen, X, Refresh
 import { useAppStore } from '../store';
 import type { Track, ActiveAmbience } from '../types';
 import { TrackContextMenu } from './TrackContextMenu';
+import * as LucideIcons from 'lucide-react';
 
 export const AmbienceView = () => {
     const {
         currentFrame, activeAmbience, playAmbience, stopAmbience, setAmbienceVolume, toggleAmbienceMute,
         tracks, saveNewPreset, updateCurrentPreset, loadPreset, deletePreset, presets, activePresetId,
-        reorderActiveAmbience // Nueva acción
+        reorderActiveAmbience
     } = useAppStore();
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [showLoadMenu, setShowLoadMenu] = useState(false);
     const [contextMenu, setContextMenu] = useState<{x: number, y: number, track: Track} | null>(null);
-    
-    // DND State for Active List
     const [draggedItem, setDraggedItem] = useState<ActiveAmbience | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     const activePresetName = presets.find(p => p.id === activePresetId)?.name;
     const availableAmbience = tracks.filter(t => t.type === 'ambience' && (!t.frame || t.frame === currentFrame));
 
-    // ... Handlers de Presets (sin cambios)
     const handleSaveNew = async () => {
         if (activeAmbience.length === 0) return alert("Añade ambientes primero.");
         const name = prompt("Nombre del Nuevo Preset:");
@@ -32,35 +30,27 @@ export const AmbienceView = () => {
     const handleDeleteCurrent = async () => { if (activePresetId && confirm(`¿Eliminar preset "${activePresetName}"?`)) await deletePreset(activePresetId); };
 
     const handleContextMenu = (e: React.MouseEvent, track: Track) => {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, track });
     };
 
-    // --- DND Handlers for ACTIVE List ---
-    const handleDragStart = (e: React.DragEvent, item: ActiveAmbience) => {
-        setDraggedItem(item);
-        e.dataTransfer.effectAllowed = "move";
-    };
-    const handleDragOver = (e: React.DragEvent, index: number) => {
-        e.preventDefault();
-        if (!draggedItem) return;
-        setDragOverIndex(index);
-    };
+    const handleDragStart = (e: React.DragEvent, item: ActiveAmbience) => { setDraggedItem(item); e.dataTransfer.effectAllowed = "move"; };
+    const handleDragOver = (e: React.DragEvent, index: number) => { e.preventDefault(); if (!draggedItem) return; setDragOverIndex(index); };
     const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-        e.preventDefault();
-        setDragOverIndex(null);
-        if (!draggedItem) return;
-
+        e.preventDefault(); setDragOverIndex(null); if (!draggedItem) return;
         const currentIndex = activeAmbience.findIndex(a => a.instanceId === draggedItem.instanceId);
         if (currentIndex === -1) return;
-
         const newOrder = [...activeAmbience];
         const [movedItem] = newOrder.splice(currentIndex, 1);
         newOrder.splice(targetIndex, 0, movedItem);
-
         reorderActiveAmbience(newOrder);
         setDraggedItem(null);
+    };
+
+    // Helper para renderizar icono dinámico
+    const renderTrackIcon = (iconName?: string, size = 20) => {
+        const Icon = (LucideIcons as any)[iconName || 'CloudRain'] || LucideIcons.CloudRain;
+        return <Icon size={size} />;
     };
 
     return (
@@ -106,7 +96,6 @@ export const AmbienceView = () => {
                 <button onClick={() => setShowAddModal(!showAddModal)} className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-amber-900/20 text-amber-500 text-xs font-bold rounded hover:bg-amber-900/40 border border-amber-900/40 transition-all"><Plus size={16} /> Añadir Capa de Ambiente</button>
             </div>
 
-            {/* Dropdown Ambientes (Sin DND, solo lista) */}
             {showAddModal && (
                 <div className="bg-slate-900 border border-slate-700 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 shadow-xl">
                     <h4 className="text-[10px] font-bold text-slate-500 uppercase px-2 mb-2 tracking-wider">Disponibles ({currentFrame})</h4>
@@ -119,7 +108,10 @@ export const AmbienceView = () => {
                                     onContextMenu={(e) => handleContextMenu(e, track)}
                                     className="w-full text-left px-3 py-2 hover:bg-slate-800 rounded flex items-center justify-between group transition-colors"
                                 >
-                                    <span className="text-sm text-slate-300 group-hover:text-white truncate">{track.name}</span>
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <span className="text-slate-500 group-hover:text-amber-500">{renderTrackIcon(track.icon, 16)}</span>
+                                        <span className="text-sm text-slate-300 group-hover:text-white truncate">{track.name}</span>
+                                    </div>
                                     <Plus size={14} className="text-slate-500 group-hover:text-amber-500" />
                                 </button>
                             ))}
@@ -128,27 +120,17 @@ export const AmbienceView = () => {
                 </div>
             )}
 
-            {/* Active List (CON DND) */}
             <div className="space-y-3">
                 {activeAmbience.length === 0 ? <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-lg text-slate-600 flex flex-col items-center gap-2"><CloudRain size={32} className="opacity-20" /><p className="text-sm">Sin atmósfera activa.</p></div> : 
                     activeAmbience.map((amb, index) => (
-                        <div 
-                            key={amb.instanceId} 
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, amb)}
-                            onDragOver={(e) => handleDragOver(e, index)}
-                            onDrop={(e) => handleDrop(e, index)}
-                            className={`
-                                bg-slate-950 border border-slate-800 rounded-lg p-3 flex items-center gap-4 shadow-sm group transition-all
-                                ${draggedItem?.instanceId === amb.instanceId ? 'opacity-50 bg-slate-800' : ''}
-                                ${dragOverIndex === index ? 'border-t-2 border-t-amber-500' : 'hover:border-slate-700'}
-                            `}
+                        <div key={amb.instanceId} 
+                            draggable onDragStart={(e) => handleDragStart(e, amb)} onDragOver={(e) => handleDragOver(e, index)} onDrop={(e) => handleDrop(e, index)}
+                            className={`bg-slate-950 border border-slate-800 rounded-lg p-3 flex items-center gap-4 shadow-sm group hover:border-slate-700 transition-all ${draggedItem?.instanceId === amb.instanceId ? 'opacity-50' : ''} ${dragOverIndex === index ? 'border-t-2 border-t-amber-500' : ''}`}
                         >
-                            <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400">
-                                <GripVertical size={14} />
+                            <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"><GripVertical size={14} /></div>
+                            <div className={`w-10 h-10 rounded flex items-center justify-center transition-colors ${amb.isMuted ? 'bg-slate-900 text-slate-700' : 'bg-cyan-900/20 text-cyan-500'}`}>
+                                {renderTrackIcon(amb.track.icon, 20)}
                             </div>
-
-                            <div className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${amb.isMuted ? 'bg-slate-900 text-slate-700' : 'bg-cyan-900/20 text-cyan-500'}`}><CloudRain size={16} /></div>
                             <div className="flex-1 min-w-0">
                                 <div className={`text-xs font-bold truncate mb-1 ${amb.isMuted ? 'text-slate-500' : 'text-slate-300'}`}>{amb.track.name}</div>
                                 <div className="flex items-center gap-2">

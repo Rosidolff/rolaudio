@@ -7,10 +7,11 @@ export interface Track {
     name: string;
     url: string;
     type: TrackType;
-    frame?: Frame; // If undefined, it's Global
+    frame?: Frame;
     category?: string; 
     subcategory?: string; 
     duration?: number;
+    icon?: string; // NUEVO: Nombre del icono
 }
 
 export interface ActiveAmbience {
@@ -33,7 +34,6 @@ export interface Playlist {
     tracks: Track[];
 }
 
-// ELIMINADA: Categoría 'General'
 export const MUSIC_CATEGORIES: Record<string, string[]> = {
     'Acción': ['Combate', 'Persecución', 'Clímax', 'Asedio'],
     'Cotidiano': ['Hoguera', 'Taberna', 'Viaje', 'Mercado'],
@@ -46,3 +46,11 @@ export const MUSIC_CATEGORIES: Record<string, string[]> = {
 export const SFX_CATEGORIES = [
     'Combate', 'Social', 'Entorno', 'Misterio', 'Magia', 'Tecnología'
 ] as const;
+
+// NUEVO: Lista de iconos para Ambientes
+export const AMBIENCE_ICONS = [
+    'CloudRain', 'Sun', 'Wind', 'Flame', 'Waves', 'Trees', 'Mountain', 'Moon', 
+    'Snowflake', 'CloudLightning', 'Ghost', 'Skull', 'Sword', 'Anchor', 
+    'Bird', 'Bug', 'Users', 'Tent', 'Castle', 'Hammer', 'Book', 
+    'Footprints', 'DoorOpen', 'Sparkles', 'Droplets', 'Fan', 'Radio', 'Rocket', 'Zap', 'Hourglass'
+];

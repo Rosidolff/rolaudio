@@ -21,6 +21,9 @@ def health():
 @app.route('/api/tracks', methods=['GET'])
 def get_tracks():
     tracks = []
+    # Cargar metadatos (iconos)
+    metadata = data_manager.get_all_metadata()
+    
     for root, dirs, files in os.walk(ASSETS_DIR):
         for file in files:
             if file.lower().endswith(('.mp3', '.wav', '.ogg')):
@@ -41,6 +44,11 @@ def get_tracks():
 
                 if t_type not in ['music', 'ambience', 'sfx']: t_type = 'sfx'
 
+                # Recuperar icono guardado o usar default según tipo
+                track_meta = metadata.get(rel_path, {})
+                default_icon = 'CloudRain' if t_type == 'ambience' else 'Music'
+                icon = track_meta.get('icon', default_icon)
+
                 tracks.append({
                     "id": rel_path,
                     "name": os.path.splitext(file)[0].replace('_', ' ').replace('-', ' ').title(),
@@ -49,7 +57,8 @@ def get_tracks():
                     "type": t_type,
                     "frame": frame if frame != "Global" else None,
                     "category": category,
-                    "subcategory": subcategory
+                    "subcategory": subcategory,
+                    "icon": icon # Campo nuevo
                 })
     return jsonify(tracks)
 
@@ -58,11 +67,12 @@ def upload_track():
     if 'file' not in request.files: return jsonify({'error': 'No file'}), 400
     file = request.files['file']
     
-    def safe_name(txt):
-        return os.path.basename(txt).strip() if txt else ""
+    def safe_name(txt): return os.path.basename(txt).strip() if txt else ""
 
     custom_name = safe_name(request.form.get('name', 'track'))
     t_type = safe_name(request.form.get('type', 'sfx'))
+    # Nuevo: Recibir icono
+    icon = request.form.get('icon', 'CloudRain')
     
     frame = request.form.get('frame', 'Global')
     if request.form.get('is_global') == 'true': frame = 'Global'
@@ -76,6 +86,10 @@ def upload_track():
     
     filename = f"{custom_name}{os.path.splitext(file.filename)[1]}"
     file.save(os.path.join(save_path, filename))
+    
+    # Guardar Metadata
+    rel_path = os.path.relpath(os.path.join(save_path, filename), ASSETS_DIR).replace('\\', '/')
+    data_manager.save_track_metadata(rel_path, {'icon': icon})
     
     return jsonify({"status": "success"}), 201
 
@@ -100,11 +114,15 @@ def move_track():
     try:
         os.makedirs(dest_dir, exist_ok=True)
         shutil.move(src_path, dest_path)
+        
+        # Actualizar referencia de metadata
+        new_rel_path = os.path.relpath(dest_path, ASSETS_DIR).replace('\\', '/')
+        data_manager.update_metadata_id(track_id, new_rel_path)
+        
         return jsonify({'status': 'moved'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- NUEVO: RENOMBRAR PISTA ---
 @app.route('/api/tracks/rename', methods=['POST'])
 def rename_track():
     data = request.json
@@ -123,11 +141,17 @@ def rename_track():
     
     try:
         os.rename(src_path, dest_path)
+        
+        # Actualizar referencia de metadata
+        new_rel_path = os.path.relpath(dest_path, ASSETS_DIR).replace('\\', '/')
+        data_manager.update_metadata_id(track_id, new_rel_path)
+        
         return jsonify({'status': 'renamed'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- Settings & Presets ---
+# --- Settings, Presets, Orders, Static ---
+# (Igual que antes)
 @app.route('/api/settings', methods=['GET', 'POST'])
 def handle_settings():
     if request.method == 'POST':
@@ -154,7 +178,6 @@ def delete_preset_endpoint(preset_id):
     data_manager.delete_preset(preset_id)
     return jsonify({"status": "deleted"})
 
-# --- Playlist Order ---
 @app.route('/api/playlist/order', methods=['POST'])
 def save_playlist_order():
     data = request.json
