@@ -19,15 +19,20 @@ function App() {
     pauseMusic,
     playMusic,
     fetchTracks,
+    fetchPresets, // Nuevo
+    loadSettings, // Nuevo
     musicCurrentTime,
     musicDuration,
-    requestSeek
+    requestSeek,
+    masterVolume,    // Traemos masterVolume
+    setMasterVolume  // Traemos el setter
   } = useAppStore()
 
   useEffect(() => {
     fetchTracks();
-  }, [fetchTracks]);
-
+    fetchPresets();
+    loadSettings(); // Cargar última sesión
+  }, []);
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -68,7 +73,15 @@ function App() {
         {/* Master Volume */}
         <div className="flex items-center gap-3 px-1">
           <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Master</span>
-          <input type="range" className="flex-1 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500" />
+          <input 
+            type="range" 
+            min="0" 
+            max="100" 
+            value={masterVolume}
+            onChange={(e) => setMasterVolume(Number(e.target.value))}
+            className="flex-1 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500" 
+          />
+          <span className="text-[10px] text-slate-500 w-6">{masterVolume}%</span>
         </div>
 
         {/* Now Playing Mini Player (if active) */}

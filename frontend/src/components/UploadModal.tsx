@@ -42,7 +42,12 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
         formData.append('name', name);
         formData.append('type', type);
         formData.append('is_global', String(isGlobal));
-        if (!isGlobal) formData.append('frame_id', '1'); // TODO: Map currentFrame name to ID properly
+        
+        // CORRECCIÓN CRÍTICA: Enviamos el nombre del frame, no un ID fijo '1'
+        if (!isGlobal) {
+            formData.append('frame', currentFrame); 
+        }
+        
         if (category) formData.append('category', category);
         if (subcategory) formData.append('subcategory', subcategory);
 
@@ -56,9 +61,10 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
 
             await fetchTracks();
             onClose();
-            // Reset form
             setFile(null);
             setName('');
+            setCategory('');
+            setSubcategory('');
         } catch (err) {
             setError('Error al subir el archivo. Inténtalo de nuevo.');
         } finally {

@@ -3,12 +3,11 @@ import uuid
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-import shutil
+import data_manager
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuración de rutas
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 
@@ -17,114 +16,98 @@ if not os.path.exists(ASSETS_DIR):
     os.makedirs(ASSETS_DIR)
 
 @app.route('/health')
-def health_check():
-    return jsonify({"status": "healthy", "mode": "Filesystem"})
+def health():
+    return jsonify({"status": "ok", "db": "json-filesystem"})
 
-def scan_directory():
-    """
-    Escanea la carpeta assets y construye la lista de pistas basada en la estructura de carpetas:
-    assets/{Frame}/{Type}/{Category}/{Subcategory}/File.mp3
-    """
+@app.route('/api/tracks', methods=['GET'])
+def get_tracks():
     tracks = []
-    
-    # Recorremos todo el directorio de assets
     for root, dirs, files in os.walk(ASSETS_DIR):
         for file in files:
             if file.lower().endswith(('.mp3', '.wav', '.ogg')):
                 full_path = os.path.join(root, file)
-                
-                # Obtenemos la ruta relativa desde 'assets'
-                # Ejemplo: 'Fantasy/music/Accion/Combate/track.mp3'
                 rel_path = os.path.relpath(full_path, ASSETS_DIR).replace('\\', '/')
+                
                 parts = rel_path.split('/')
-
-                # Valores por defecto
-                track_id = rel_path # Usamos el path como ID único
-                name = os.path.splitext(file)[0].replace('_', ' ').title()
+                
                 frame = "Global"
-                t_type = "sfx" # Default
+                t_type = "sfx"
                 category = "General"
                 subcategory = ""
-
-                # Lógica heurística para determinar metadatos según la profundidad de la carpeta
-                # Esperamos: [Frame, Type, Category, Subcategory, Filename]
                 
-                # Caso 1: Carpeta 'mocks' antigua (la trataremos como Global)
-                if parts[0] == 'mocks':
-                    frame = 'Global'
-                    if len(parts) > 1: t_type = parts[1]
-                    if len(parts) > 2: category = parts[2]
-                    if len(parts) > 3 and parts[3] != file: subcategory = parts[3]
-                
-                # Caso 2: Nueva estructura uploads o manual
-                else:
-                    # Intentar mapear estructura: Frame / Type / Category / Subcategory
-                    if len(parts) > 0: frame = parts[0]
-                    if len(parts) > 1: t_type = parts[1]
-                    if len(parts) > 2: category = parts[2]
-                    if len(parts) > 3 and parts[3] != file: subcategory = parts[3]
+                if len(parts) > 0:
+                    # Si la carpeta es 'mocks', asumimos Global, si no, el nombre de la carpeta es el Frame
+                    frame = parts[0] if parts[0] != 'mocks' else 'Global'
+                if len(parts) > 1: t_type = parts[1]
+                if len(parts) > 2: category = parts[2]
+                if len(parts) > 3 and parts[3] != file: subcategory = parts[3]
 
-                # Limpieza de datos
-                if t_type not in ['music', 'ambience', 'sfx']:
-                    t_type = 'sfx' # Fallback
+                if t_type not in ['music', 'ambience', 'sfx']: t_type = 'sfx'
 
                 tracks.append({
-                    "id": track_id,
-                    "name": name,
-                    "url": f"http://localhost:5000/assets/{rel_path}", # URL directa para el frontend
+                    "id": rel_path,
+                    "name": os.path.splitext(file)[0].replace('_', ' ').replace('-', ' ').title(),
+                    "url": f"http://localhost:5000/assets/{rel_path}",
                     "filename": rel_path,
                     "type": t_type,
-                    "frame": frame if frame != 'Global' else None, # Frontend espera null para Global
+                    "frame": frame if frame != "Global" else None,
                     "category": category,
-                    "subcategory": subcategory,
-                    "is_global": frame == 'Global'
+                    "subcategory": subcategory
                 })
-    return tracks
-
-@app.route('/api/tracks', methods=['GET'])
-def get_tracks():
-    tracks = scan_directory()
     return jsonify(tracks)
 
 @app.route('/api/tracks', methods=['POST'])
 def upload_track():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    
+    if 'file' not in request.files: return jsonify({'error': 'No file'}), 400
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-
-    # Datos del formulario
-    custom_name = request.form.get('name')
+    
+    name = secure_filename(request.form.get('name', 'track'))
     t_type = request.form.get('type', 'sfx')
-    frame = request.form.get('frame', 'Global') # Ahora recibimos el nombre del Frame, ej: "Fantasy"
-    category = request.form.get('category', 'General')
-    subcategory = request.form.get('subcategory', '')
-    is_global = request.form.get('is_global') == 'true'
-
-    if is_global:
-        frame = "Global"
-
-    # Renombrar el archivo físico con el nombre que dio el usuario
-    ext = os.path.splitext(file.filename)[1]
-    safe_name = secure_filename(custom_name) + ext
     
-    # Construir ruta de destino
-    # assets/{Frame}/{Type}/{Category}/{Subcategory}/
-    save_dir = os.path.join(ASSETS_DIR, frame, t_type, category, subcategory)
-    os.makedirs(save_dir, exist_ok=True)
-    
-    file_path = os.path.join(save_dir, safe_name)
-    
-    # Guardar archivo
-    file.save(file_path)
+    # CORRECCIÓN: Leemos 'frame' en lugar de 'frame_id'
+    frame = request.form.get('frame', 'Global')
+    if request.form.get('is_global') == 'true': 
+        frame = 'Global'
+        
+    category = secure_filename(request.form.get('category', 'General'))
+    subcategory = secure_filename(request.form.get('subcategory', ''))
 
-    return jsonify({"message": "Upload successful", "path": file_path}), 201
+    save_path = os.path.join(ASSETS_DIR, frame, t_type, category, subcategory)
+    os.makedirs(save_path, exist_ok=True)
+    
+    filename = f"{name}{os.path.splitext(file.filename)[1]}"
+    file.save(os.path.join(save_path, filename))
+    
+    return jsonify({"status": "success"}), 201
 
-# Servir archivos estáticos
+@app.route('/api/settings', methods=['GET', 'POST'])
+def handle_settings():
+    if request.method == 'POST':
+        data_manager.save_settings(request.json)
+        return jsonify({"status": "saved"})
+    return jsonify(data_manager.get_settings())
+
+@app.route('/api/presets', methods=['GET', 'POST'])
+def handle_presets():
+    if request.method == 'POST':
+        data = request.json
+        preset = {
+            "id": data.get('id', str(uuid.uuid4())),
+            "name": data.get('name', 'Nuevo Preset'),
+            "frame": data.get('frame', 'Global'),
+            "tracks": data.get('tracks', []) 
+        }
+        data_manager.save_preset(preset)
+        return jsonify(preset)
+    return jsonify(data_manager.get_presets())
+
+@app.route('/api/presets/<preset_id>', methods=['DELETE'])
+def delete_preset_endpoint(preset_id):
+    data_manager.delete_preset(preset_id)
+    return jsonify({"status": "deleted"})
+
 @app.route('/assets/<path:path>')
-def send_asset(path):
+def serve_asset(path):
     return send_from_directory(ASSETS_DIR, path)
 
 if __name__ == '__main__':

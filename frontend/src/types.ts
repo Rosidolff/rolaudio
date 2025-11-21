@@ -1,16 +1,14 @@
 export type Frame = 'Fantasy' | 'Futurista' | 'Grim Dark';
-
 export type TrackType = 'music' | 'ambience' | 'sfx';
 
 export interface Track {
     id: string;
     name: string;
-    url: string; // Path to file
+    url: string;
     type: TrackType;
-    frame?: Frame; // If undefined, it's Global
-    category?: string; // e.g., 'Action', 'Social'
-    subcategory?: string; // e.g., 'Combate', 'Hoguera'
-    duration?: number;
+    frame?: Frame;
+    category?: string;
+    subcategory?: string;
 }
 
 export interface ActiveAmbience {
@@ -20,12 +18,14 @@ export interface ActiveAmbience {
     isMuted: boolean;
 }
 
-export interface Playlist {
+export interface AmbiencePreset {
     id: string;
     name: string;
-    tracks: Track[];
+    frame: Frame;
+    tracks: { trackId: string; volume: number }[];
 }
 
+// Eliminada la categoría 'Ambiental' para no confundir con el Tipo 'Ambience'
 export const MUSIC_CATEGORIES: Record<string, string[]> = {
     'General': ['General'],
     'Acción': ['Combate', 'Persecución', 'Clímax', 'Asedio'],
@@ -33,8 +33,7 @@ export const MUSIC_CATEGORIES: Record<string, string[]> = {
     'Misterio': ['Investigación', 'Sigilo', 'Conspiración', 'Descubrimiento'],
     'Terror': ['Misterio', 'Horror', 'Tensión', 'Encuentro Sobrenatural'],
     'Exploración': ['Bosque', 'Ruinas', 'Mar', 'Desierto', 'Montañas'],
-    'Drama': ['Intriga', 'Ceremonia', 'Duelo', 'Revelación'],
-    'Ambiental': ['Lluvia', 'Viento', 'Fuego', 'Naturaleza']
+    'Drama': ['Intriga', 'Ceremonia', 'Duelo', 'Revelación']
 };
 
 export const SFX_CATEGORIES = [
