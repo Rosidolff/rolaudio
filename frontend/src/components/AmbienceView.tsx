@@ -6,8 +6,8 @@ export const AmbienceView = () => {
     const {
         currentFrame,
         activeAmbience,
-        addAmbience,
-        removeAmbience,
+        playAmbience,
+        stopAmbience,
         setAmbienceVolume,
         toggleAmbienceMute,
         tracks
@@ -52,7 +52,7 @@ export const AmbienceView = () => {
                             <button
                                 key={track.id}
                                 onClick={() => {
-                                    addAmbience(track);
+                                    playAmbience(track);
                                     setShowAddModal(false);
                                 }}
                                 className="w-full text-left px-3 py-2 hover:bg-slate-800 rounded flex items-center justify-between group"
@@ -109,7 +109,7 @@ export const AmbienceView = () => {
                                     {amb.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                                 </button>
                                 <button
-                                    onClick={() => removeAmbience(amb.instanceId)}
+                                    onClick={() => stopAmbience(amb.instanceId)}
                                     className="p-2 rounded hover:bg-red-900/20 text-slate-600 hover:text-red-400 transition-colors"
                                     title="Eliminar capa"
                                 >

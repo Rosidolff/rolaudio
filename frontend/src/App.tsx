@@ -11,11 +11,28 @@ import { AudioEngine } from './components/AudioEngine'
 function App() {
   const [activeTab, setActiveTab] = useState<'music' | 'ambience' | 'sfx'>('music')
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
-  const { currentFrame, setFrame, activeMusic, isPlayingMusic, pauseMusic, playMusic, fetchTracks } = useAppStore()
+  const {
+    currentFrame,
+    setFrame,
+    activeMusic,
+    isPlayingMusic,
+    pauseMusic,
+    playMusic,
+    fetchTracks,
+    musicCurrentTime,
+    musicDuration,
+    requestSeek
+  } = useAppStore()
 
   useEffect(() => {
     fetchTracks();
   }, [fetchTracks]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="h-screen w-full bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
@@ -60,9 +77,21 @@ function App() {
             <div className="w-8 h-8 bg-amber-900/30 rounded flex items-center justify-center text-amber-500">
               <Music size={14} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-slate-200 truncate">{activeMusic.name}</div>
-              <div className="text-[10px] text-slate-500 truncate">{activeMusic.category} - {activeMusic.subcategory}</div>
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+              <div className="flex justify-between items-center">
+                <div className="text-xs font-bold text-slate-200 truncate">{activeMusic.name}</div>
+                <div className="text-[10px] text-slate-500 font-mono">
+                  {formatTime(musicCurrentTime)} / {formatTime(musicDuration)}
+                </div>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max={musicDuration || 100}
+                value={musicCurrentTime}
+                onChange={(e) => requestSeek(Number(e.target.value))}
+                className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              />
             </div>
             <button
               onClick={() => isPlayingMusic ? pauseMusic() : playMusic(activeMusic)}

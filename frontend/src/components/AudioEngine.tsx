@@ -7,12 +7,18 @@ export const AudioEngine = () => {
         activeMusic,
         isPlayingMusic,
         masterVolume,
-        activeAmbience
+        activeAmbience,
+        seekRequest,
+        sfxQueue,
+        setMusicProgress,
+        requestSeek,
+        popSFX
     } = useAppStore();
 
     // Refs to hold Howl instances
     const musicHowlRef = useRef<Howl | null>(null);
     const ambienceHowlsRef = useRef<Map<string, Howl>>(new Map());
+    const rafRef = useRef<number | null>(null);
 
     // --- Music Logic ---
     useEffect(() => {
@@ -24,6 +30,10 @@ export const AudioEngine = () => {
                     musicHowlRef.current?.stop();
                     musicHowlRef.current = null;
                 }, 1000);
+            }
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
             }
             return;
         }
@@ -72,6 +82,39 @@ export const AudioEngine = () => {
         }
     }, [masterVolume]);
 
+    // Handle Seeking
+    useEffect(() => {
+        if (seekRequest !== null && musicHowlRef.current) {
+            musicHowlRef.current.seek(seekRequest);
+            requestSeek(null as any); // Reset seek request. Cast to any to avoid type error if store expects number
+        }
+    }, [seekRequest, requestSeek]);
+
+    // Progress Tracking
+    useEffect(() => {
+        const updateProgress = () => {
+            if (musicHowlRef.current && musicHowlRef.current.playing()) {
+                const seek = musicHowlRef.current.seek();
+                const duration = musicHowlRef.current.duration();
+                // Howler returns seek as number or Howl object, ensure it's number
+                if (typeof seek === 'number') {
+                    setMusicProgress(seek, duration);
+                }
+            }
+            rafRef.current = requestAnimationFrame(updateProgress);
+        };
+
+        if (isPlayingMusic) {
+            rafRef.current = requestAnimationFrame(updateProgress);
+        } else {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        }
+
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+    }, [isPlayingMusic, setMusicProgress]);
+
 
     // --- Ambience Logic ---
     useEffect(() => {
@@ -115,6 +158,22 @@ export const AudioEngine = () => {
         });
 
     }, [activeAmbience, masterVolume]);
+
+    // --- SFX Logic ---
+    useEffect(() => {
+        if (sfxQueue.length > 0) {
+            const url = sfxQueue[0];
+            const sfx = new Howl({
+                src: [url],
+                volume: masterVolume / 100,
+                onend: () => {
+                    // Optional: cleanup if needed
+                }
+            });
+            sfx.play();
+            popSFX();
+        }
+    }, [sfxQueue, masterVolume, popSFX]);
 
     return null; // Logic only component
 };
