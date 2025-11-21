@@ -13,9 +13,12 @@ export const AudioEngine = () => {
         requestSeek,
         activeSFXIds,
         sfxTrigger,
-        sfxFinished
+        sfxFinished,
+        playbackMode,
+        nextTrack
     } = useAppStore();
 
+    // Refs to hold Howl instances
     const musicHowlRef = useRef<Howl | null>(null);
     const ambienceHowlsRef = useRef<Map<string, Howl>>(new Map());
     const sfxHowlsRef = useRef<Map<string, Howl>>(new Map());
@@ -23,8 +26,9 @@ export const AudioEngine = () => {
 
     const masterVolFactor = masterVolume / 100;
 
-    // --- MÚSICA ---
+    // --- Music Logic ---
     useEffect(() => {
+        // If there's no active music, stop current and return
         if (!activeMusic) {
             if (musicHowlRef.current) {
                 musicHowlRef.current.fade(musicHowlRef.current.volume(), 0, 1000);
@@ -36,6 +40,7 @@ export const AudioEngine = () => {
             return;
         }
 
+        // If same track is already loaded, just handle play/pause
         if (musicHowlRef.current && (musicHowlRef.current as any)._src.includes(activeMusic.url)) {
             if (isPlayingMusic) {
                 if (!musicHowlRef.current.playing()) {
@@ -45,9 +50,12 @@ export const AudioEngine = () => {
             } else {
                 musicHowlRef.current.pause();
             }
+            // Actualizar loop si cambia el modo
+            musicHowlRef.current.loop(playbackMode === 'loop');
             return;
         }
 
+        // New track selected: Fade out old, load new
         if (musicHowlRef.current) {
             const oldHowl = musicHowlRef.current;
             oldHowl.fade(oldHowl.volume(), 0, 1000);
@@ -57,11 +65,17 @@ export const AudioEngine = () => {
         if (isPlayingMusic) {
             const newHowl = new Howl({
                 src: [activeMusic.url],
-                html5: true,
-                loop: true,
-                volume: 0,
+                html5: true, // Force HTML5 Audio for large files
+                loop: playbackMode === 'loop',
+                volume: 0, // Start at 0 for fade in
                 onloaderror: (_id, err) => console.error('Music Load Error:', err),
-                onplayerror: (_id, err) => console.error('Music Play Error:', err)
+                onplayerror: (_id, err) => console.error('Music Play Error:', err),
+                onend: () => {
+                    // Si no estamos en bucle, pasamos a la siguiente
+                    if (playbackMode !== 'loop') {
+                        nextTrack();
+                    }
+                }
             });
 
             musicHowlRef.current = newHowl;
@@ -69,21 +83,31 @@ export const AudioEngine = () => {
             newHowl.fade(0, masterVolFactor, 2000);
         }
 
-    }, [activeMusic, isPlayingMusic]);
+    }, [activeMusic, isPlayingMusic, playbackMode]); // playbackMode incluido para actualizar loop state
 
+    // Actualizar estado de loop dinámicamente
+    useEffect(() => {
+        if (musicHowlRef.current) {
+            musicHowlRef.current.loop(playbackMode === 'loop');
+        }
+    }, [playbackMode]);
+
+    // Update Music Volume when Master Volume changes
     useEffect(() => {
         if (musicHowlRef.current) {
             musicHowlRef.current.volume(masterVolFactor);
         }
     }, [masterVolume]);
 
+    // Handle Seeking
     useEffect(() => {
         if (seekRequest !== null && musicHowlRef.current) {
             musicHowlRef.current.seek(seekRequest);
-            requestSeek(null as any);
+            requestSeek(null as any); 
         }
     }, [seekRequest, requestSeek]);
 
+    // Progress Tracking
     useEffect(() => {
         const updateProgress = () => {
             if (musicHowlRef.current && musicHowlRef.current.playing()) {
@@ -108,7 +132,7 @@ export const AudioEngine = () => {
     }, [isPlayingMusic, setMusicProgress]);
 
 
-    // --- AMBIENTES ---
+    // --- Ambience Logic ---
     useEffect(() => {
         const currentIds = new Set(activeAmbience.map(a => a.instanceId));
 
@@ -146,9 +170,9 @@ export const AudioEngine = () => {
 
     }, [activeAmbience, masterVolume]);
 
-
-    // --- SFX ---
+    // --- SFX Logic ---
     
+    // Trigger
     useEffect(() => {
         if (sfxTrigger) {
             const { track } = sfxTrigger;
@@ -169,8 +193,9 @@ export const AudioEngine = () => {
             sfxHowlsRef.current.set(track.id, sfx);
             sfx.play();
         }
-    }, [sfxTrigger]); // Ahora sí cambia gracias al triggerId
+    }, [sfxTrigger]);
 
+    // Active List Sync
     useEffect(() => {
         sfxHowlsRef.current.forEach((howl, id) => {
             if (!activeSFXIds.includes(id)) {
@@ -182,5 +207,5 @@ export const AudioEngine = () => {
         });
     }, [activeSFXIds, masterVolume]);
 
-    return null; 
+    return null;
 };

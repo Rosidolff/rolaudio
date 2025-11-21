@@ -4,6 +4,7 @@ import os
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 SETTINGS_FILE = os.path.join(DATA_DIR, 'settings.json')
 PRESETS_FILE = os.path.join(DATA_DIR, 'presets.json')
+ORDERS_FILE = os.path.join(DATA_DIR, 'playlist_orders.json')
 
 # Asegurar que el directorio data existe
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -36,16 +37,30 @@ def get_presets():
 
 def save_preset(preset):
     presets = get_presets()
-    # Si ya existe (por nombre), actualizar, sino añadir
+    # Si ya existe (por ID), actualizar, sino añadir
+    found = False
     for idx, p in enumerate(presets):
         if p['id'] == preset['id']:
             presets[idx] = preset
-            save_json(PRESETS_FILE, presets)
-            return
-    presets.append(preset)
+            found = True
+            break
+    
+    if not found:
+        presets.append(preset)
+        
     save_json(PRESETS_FILE, presets)
 
 def delete_preset(preset_id):
     presets = get_presets()
     presets = [p for p in presets if p['id'] != preset_id]
     save_json(PRESETS_FILE, presets)
+
+# --- API Playlist Orders ---
+# Estructura: { "Frame.Category.Subcategory": ["track_id_1", "track_id_2", ...] }
+def get_orders():
+    return load_json(ORDERS_FILE, {})
+
+def save_order(key, track_ids):
+    orders = get_orders()
+    orders[key] = track_ids
+    save_json(ORDERS_FILE, orders)

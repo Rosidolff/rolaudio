@@ -1,14 +1,16 @@
 export type Frame = 'Fantasy' | 'Futurista' | 'Grim Dark';
 export type TrackType = 'music' | 'ambience' | 'sfx';
+export type PlaybackMode = 'loop' | 'sequential' | 'shuffle';
 
 export interface Track {
     id: string;
     name: string;
     url: string;
     type: TrackType;
-    frame?: Frame;
-    category?: string;
-    subcategory?: string;
+    frame?: Frame; // If undefined, it's Global
+    category?: string; 
+    subcategory?: string; 
+    duration?: number;
 }
 
 export interface ActiveAmbience {
@@ -25,9 +27,14 @@ export interface AmbiencePreset {
     tracks: { trackId: string; volume: number }[];
 }
 
-// Eliminada la categoría 'Ambiental' para no confundir con el Tipo 'Ambience'
+export interface Playlist {
+    id: string;
+    name: string;
+    tracks: Track[];
+}
+
+// ELIMINADA: Categoría 'General'
 export const MUSIC_CATEGORIES: Record<string, string[]> = {
-    'General': ['General'],
     'Acción': ['Combate', 'Persecución', 'Clímax', 'Asedio'],
     'Cotidiano': ['Hoguera', 'Taberna', 'Viaje', 'Mercado'],
     'Misterio': ['Investigación', 'Sigilo', 'Conspiración', 'Descubrimiento'],

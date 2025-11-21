@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { Zap, ChevronDown, ChevronRight, Square } from 'lucide-react';
+import { Zap, ChevronDown, ChevronRight } from 'lucide-react';
 import { SFX_CATEGORIES } from '../types';
 import { useAppStore } from '../store';
 
 export const SFXView = () => {
     const { currentFrame, toggleSFX, activeSFXIds, tracks } = useAppStore();
     
-    // Estado para categorías expandidas (por defecto algunas abiertas)
     const [expandedCategories, setExpandedCategories] = useState<string[]>(['Combate', 'Magia']);
 
-    // Filtrar pistas SFX por Frame actual + Globales
     const availableSFX = tracks.filter(t =>
         t.type === 'sfx' && (!t.frame || t.frame === currentFrame)
     );
@@ -27,25 +25,24 @@ export const SFXView = () => {
 
                 return (
                     <div key={category} className="border border-slate-800 rounded-lg overflow-hidden bg-slate-900/50">
-                        {/* Cabecera de Categoría */}
+                        {/* Cabecera */}
                         <button
                             onClick={() => toggleCategory(category)}
                             className="w-full px-3 py-2 flex items-center justify-between bg-slate-800/80 hover:bg-slate-800 transition-colors text-left"
                         >
-                            <span className="font-bold text-slate-200 flex items-center gap-2 text-sm">
-                                <Zap size={14} className="text-amber-500" />
+                            <span className="font-bold text-slate-200 flex items-center gap-2 text-xs uppercase tracking-wider">
                                 {category}
                             </span>
                             {expandedCategories.includes(category) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
 
-                        {/* Contenido de Categoría */}
+                        {/* Grid de botones SFX */}
                         {expandedCategories.includes(category) && (
                             <div className="p-2 bg-slate-950/50">
                                 {tracksInCategory.length === 0 ? (
-                                    <div className="text-xs text-slate-600 italic px-2">No hay efectos disponibles.</div>
+                                    <div className="text-xs text-slate-600 italic px-2">Vacío.</div>
                                 ) : (
-                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-3 gap-2">
                                         {tracksInCategory.map(track => {
                                             const isActive = activeSFXIds.includes(track.id);
                                             
@@ -54,19 +51,19 @@ export const SFXView = () => {
                                                     key={track.id}
                                                     onClick={() => toggleSFX(track)}
                                                     className={`
-                                                        relative p-2 rounded flex flex-col items-center gap-2 transition-all active:scale-95 border
+                                                        relative h-20 p-2 rounded-md flex items-center justify-center transition-all active:scale-95 border overflow-hidden
                                                         ${isActive 
-                                                            ? 'bg-amber-900/20 border-amber-500/50 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.1)]' 
-                                                            : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750 hover:border-slate-600 hover:text-slate-200'}
+                                                            ? 'bg-amber-600 border-amber-400 text-white shadow-[0_0_15px_rgba(245,158,11,0.3)]' 
+                                                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750 hover:border-slate-600 hover:text-white'}
                                                     `}
                                                 >
-                                                    {isActive ? (
-                                                        <Square size={20} fill="currentColor" className="animate-pulse" />
-                                                    ) : (
-                                                        <Zap size={20} />
+                                                    {/* Indicador de estado (borde brillante o fondo) */}
+                                                    {isActive && (
+                                                        <div className="absolute inset-0 bg-white/10 animate-pulse" />
                                                     )}
-                                                    
-                                                    <span className="text-[10px] font-medium text-center truncate w-full leading-tight">
+
+                                                    {/* Texto GRANDE y centrado */}
+                                                    <span className="text-sm font-black leading-tight text-center break-words w-full z-10 drop-shadow-md uppercase">
                                                         {track.name}
                                                     </span>
                                                 </button>

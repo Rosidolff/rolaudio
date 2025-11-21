@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { X, Upload, Check, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { X, Upload, Check, AlertCircle, Files } from 'lucide-react';
 import { useAppStore } from '../store';
 import { MUSIC_CATEGORIES, SFX_CATEGORIES } from '../types';
 
@@ -11,7 +11,7 @@ interface UploadModalProps {
 
 export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: UploadModalProps) => {
     const { currentFrame, fetchTracks } = useAppStore();
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [name, setName] = useState('');
     const [type, setType] = useState<'music' | 'ambience' | 'sfx'>(preselectedType);
     const [category, setCategory] = useState('');
@@ -21,52 +21,74 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // CORRECCIÓN: El useEffect debe estar ANTES de cualquier return condicional
+    // Auto-seleccionar primera subcategoría al cambiar categoría
+    useEffect(() => {
+        if (type === 'music' && category && MUSIC_CATEGORIES[category]) {
+            setSubcategory(MUSIC_CATEGORIES[category][0]);
+        }
+    }, [category, type]);
+
+    // CORRECCIÓN: Ahora sí podemos hacer el early return
     if (!isOpen) return null;
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const selectedFile = e.target.files[0];
-            setFile(selectedFile);
-            setName(selectedFile.name.replace(/\.[^/.]+$/, "").replace(/_/g, " "));
+        if (e.target.files && e.target.files.length > 0) {
+            const selectedFiles = Array.from(e.target.files);
+            setFiles(selectedFiles);
+            
+            if (selectedFiles.length === 1) {
+                setName(selectedFiles[0].name.replace(/\.[^/.]+$/, "").replace(/_/g, " "));
+            } else {
+                setName('');
+            }
         }
     };
 
     const handleUpload = async () => {
-        if (!file || !name) return;
+        if (files.length === 0) return;
+        if (files.length === 1 && !name) return;
 
         setIsUploading(true);
         setError(null);
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('name', name);
-        formData.append('type', type);
-        formData.append('is_global', String(isGlobal));
-        
-        // CORRECCIÓN CRÍTICA: Enviamos el nombre del frame, no un ID fijo '1'
-        if (!isGlobal) {
-            formData.append('frame', currentFrame); 
-        }
-        
-        if (category) formData.append('category', category);
-        if (subcategory) formData.append('subcategory', subcategory);
-
         try {
-            const response = await fetch('http://localhost:5000/api/tracks', {
-                method: 'POST',
-                body: formData,
-            });
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const finalName = files.length > 1 
+                    ? file.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ") 
+                    : name;
 
-            if (!response.ok) throw new Error('Upload failed');
+                formData.append('name', finalName);
+                formData.append('type', type);
+                formData.append('is_global', String(isGlobal));
+                
+                if (!isGlobal) {
+                    formData.append('frame', currentFrame); 
+                }
+                
+                if (category) formData.append('category', category);
+                if (subcategory) formData.append('subcategory', subcategory);
+
+                const response = await fetch('http://localhost:5000/api/tracks', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) throw new Error(`Error al subir ${file.name}`);
+            }
 
             await fetchTracks();
             onClose();
-            setFile(null);
+            setFiles([]);
             setName('');
             setCategory('');
             setSubcategory('');
         } catch (err) {
-            setError('Error al subir el archivo. Inténtalo de nuevo.');
+            console.error(err);
+            setError('Error durante la subida. Revisa la consola.');
         } finally {
             setIsUploading(false);
         }
@@ -78,7 +100,7 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
                 <div className="flex items-center justify-between p-4 border-b border-slate-800">
                     <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                         <Upload size={20} className="text-amber-500" />
-                        Subir Pista de Audio
+                        Subir Pistas ({files.length})
                     </h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
                         <X size={20} />
@@ -89,7 +111,7 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
                     {/* File Drop Area */}
                     <div
                         onClick={() => fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${file ? 'border-amber-500/50 bg-amber-500/5' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800/50'
+                        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${files.length > 0 ? 'border-amber-500/50 bg-amber-500/5' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800/50'
                             }`}
                     >
                         <input
@@ -98,16 +120,26 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
                             onChange={handleFileChange}
                             accept="audio/*"
                             className="hidden"
+                            multiple
                         />
-                        {file ? (
+                        {files.length > 0 ? (
                             <div className="text-amber-400 font-medium flex flex-col items-center gap-2">
-                                <Check size={24} />
-                                {file.name}
+                                {files.length === 1 ? (
+                                    <>
+                                        <Check size={24} />
+                                        <span className="truncate max-w-[200px]">{files[0].name}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Files size={24} />
+                                        <span>{files.length} archivos seleccionados</span>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <div className="text-slate-400 flex flex-col items-center gap-2">
                                 <Upload size={24} />
-                                <span className="text-sm">Click para seleccionar archivo (MP3, WAV, OGG)</span>
+                                <span className="text-sm">Click para seleccionar archivos (MP3, WAV, OGG)</span>
                             </div>
                         )}
                     </div>
@@ -120,8 +152,9 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:border-amber-500 outline-none"
-                                placeholder="Nombre de la pista"
+                                disabled={files.length > 1}
+                                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:border-amber-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                placeholder={files.length > 1 ? "(Se usarán los nombres de archivo)" : "Nombre de la pista"}
                             />
                         </div>
 
@@ -153,7 +186,6 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
                             </div>
                         </div>
 
-                        {/* Dynamic Categories based on Type */}
                         {type === 'music' && (
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
@@ -212,18 +244,18 @@ export const UploadModal = ({ isOpen, onClose, preselectedType = 'music' }: Uplo
 
                     <button
                         onClick={handleUpload}
-                        disabled={!file || !name || isUploading}
+                        disabled={files.length === 0 || (files.length === 1 && !name) || isUploading}
                         className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 mt-4"
                     >
                         {isUploading ? (
                             <>
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Subiendo...
+                                {files.length > 1 ? `Subiendo ${files.length}...` : 'Subiendo...'}
                             </>
                         ) : (
                             <>
                                 <Upload size={18} />
-                                Subir Pista
+                                {files.length > 1 ? 'Subir Pistas' : 'Subir Pista'}
                             </>
                         )}
                     </button>
