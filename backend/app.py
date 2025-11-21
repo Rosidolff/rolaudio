@@ -1,80 +1,131 @@
 import os
+import uuid
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from database import db
+import shutil
 
-app = Flask(__name__, static_folder='assets')
+app = Flask(__name__)
 CORS(app)
 
-# Database Configuration
-db_path = os.path.join(os.path.dirname(__file__), 'rpg_music.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', f'sqlite:///{db_path}')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Configuración de rutas
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 
-db.init_app(app)
-
-from models import Track, Frame, Preset
+# Asegurar que existen las carpetas base si no están
+if not os.path.exists(ASSETS_DIR):
+    os.makedirs(ASSETS_DIR)
 
 @app.route('/health')
 def health_check():
-    return jsonify({"status": "healthy", "service": "RPGMusicManager Backend"})
+    return jsonify({"status": "healthy", "mode": "Filesystem"})
 
-@app.route('/api/tracks', methods=['GET', 'POST'])
-def handle_tracks():
-    if request.method == 'GET':
-        tracks = Track.query.all()
-        return jsonify([t.to_dict() for t in tracks])
+def scan_directory():
+    """
+    Escanea la carpeta assets y construye la lista de pistas basada en la estructura de carpetas:
+    assets/{Frame}/{Type}/{Category}/{Subcategory}/File.mp3
+    """
+    tracks = []
     
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
-            
-        if file:
-            filename = secure_filename(file.filename)
-            # Determine save path based on type/category
-            t_type = request.form.get('type', 'music')
-            category = request.form.get('category', 'Uncategorized')
-            subcategory = request.form.get('subcategory', '')
-            
-            # Create directory structure
-            # app.static_folder is 'assets'
-            save_dir = os.path.join(app.static_folder, 'uploads', t_type, category, subcategory)
-            os.makedirs(save_dir, exist_ok=True)
-            
-            file_path = os.path.join(save_dir, filename)
-            file.save(file_path)
-            
-            # Create DB entry
-            # Path relative to backend root (where app.py is)
-            rel_path = os.path.relpath(file_path, os.path.dirname(__file__)).replace('\\', '/')
-            
-            new_track = Track(
-                name=request.form.get('name', filename),
-                filename=rel_path,
-                type=t_type,
-                category=category,
-                subcategory=subcategory,
-                is_global=request.form.get('is_global') == 'true',
-                frame_id=request.form.get('frame_id') if request.form.get('frame_id') else None
-            )
-            db.session.add(new_track)
-            db.session.commit()
-            
-            return jsonify(new_track.to_dict()), 201
+    # Recorremos todo el directorio de assets
+    for root, dirs, files in os.walk(ASSETS_DIR):
+        for file in files:
+            if file.lower().endswith(('.mp3', '.wav', '.ogg')):
+                full_path = os.path.join(root, file)
+                
+                # Obtenemos la ruta relativa desde 'assets'
+                # Ejemplo: 'Fantasy/music/Accion/Combate/track.mp3'
+                rel_path = os.path.relpath(full_path, ASSETS_DIR).replace('\\', '/')
+                parts = rel_path.split('/')
 
-@app.route('/api/frames')
-def get_frames():
-    frames = Frame.query.all()
-    return jsonify([f.to_dict() for f in frames])
+                # Valores por defecto
+                track_id = rel_path # Usamos el path como ID único
+                name = os.path.splitext(file)[0].replace('_', ' ').title()
+                frame = "Global"
+                t_type = "sfx" # Default
+                category = "General"
+                subcategory = ""
 
-# Serve static files from assets directory
+                # Lógica heurística para determinar metadatos según la profundidad de la carpeta
+                # Esperamos: [Frame, Type, Category, Subcategory, Filename]
+                
+                # Caso 1: Carpeta 'mocks' antigua (la trataremos como Global)
+                if parts[0] == 'mocks':
+                    frame = 'Global'
+                    if len(parts) > 1: t_type = parts[1]
+                    if len(parts) > 2: category = parts[2]
+                    if len(parts) > 3 and parts[3] != file: subcategory = parts[3]
+                
+                # Caso 2: Nueva estructura uploads o manual
+                else:
+                    # Intentar mapear estructura: Frame / Type / Category / Subcategory
+                    if len(parts) > 0: frame = parts[0]
+                    if len(parts) > 1: t_type = parts[1]
+                    if len(parts) > 2: category = parts[2]
+                    if len(parts) > 3 and parts[3] != file: subcategory = parts[3]
+
+                # Limpieza de datos
+                if t_type not in ['music', 'ambience', 'sfx']:
+                    t_type = 'sfx' # Fallback
+
+                tracks.append({
+                    "id": track_id,
+                    "name": name,
+                    "url": f"http://localhost:5000/assets/{rel_path}", # URL directa para el frontend
+                    "filename": rel_path,
+                    "type": t_type,
+                    "frame": frame if frame != 'Global' else None, # Frontend espera null para Global
+                    "category": category,
+                    "subcategory": subcategory,
+                    "is_global": frame == 'Global'
+                })
+    return tracks
+
+@app.route('/api/tracks', methods=['GET'])
+def get_tracks():
+    tracks = scan_directory()
+    return jsonify(tracks)
+
+@app.route('/api/tracks', methods=['POST'])
+def upload_track():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    # Datos del formulario
+    custom_name = request.form.get('name')
+    t_type = request.form.get('type', 'sfx')
+    frame = request.form.get('frame', 'Global') # Ahora recibimos el nombre del Frame, ej: "Fantasy"
+    category = request.form.get('category', 'General')
+    subcategory = request.form.get('subcategory', '')
+    is_global = request.form.get('is_global') == 'true'
+
+    if is_global:
+        frame = "Global"
+
+    # Renombrar el archivo físico con el nombre que dio el usuario
+    ext = os.path.splitext(file.filename)[1]
+    safe_name = secure_filename(custom_name) + ext
+    
+    # Construir ruta de destino
+    # assets/{Frame}/{Type}/{Category}/{Subcategory}/
+    save_dir = os.path.join(ASSETS_DIR, frame, t_type, category, subcategory)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    file_path = os.path.join(save_dir, safe_name)
+    
+    # Guardar archivo
+    file.save(file_path)
+
+    return jsonify({"message": "Upload successful", "path": file_path}), 201
+
+# Servir archivos estáticos
 @app.route('/assets/<path:path>')
 def send_asset(path):
-    return send_from_directory('assets', path)
+    return send_from_directory(ASSETS_DIR, path)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
